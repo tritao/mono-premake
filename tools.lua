@@ -1,3 +1,5 @@
+include("jay.lua")
+
 project "genmdesc"
 
 	SetupNativeProject()
