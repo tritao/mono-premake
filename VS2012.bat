@@ -1,2 +1,2 @@
-"./premake4" --file=premake4.lua vs2012
+"./premake5" --file=premake5.lua vs2013
 pause
