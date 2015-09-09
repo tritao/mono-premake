@@ -1,9 +1,6 @@
 EGLIB_ROOT = MONO_ROOT .. 'eglib/'
 
 project "eglib"
-
-	SetupNativeProject()
-	SetupWindowsWarnings()
 	
 	kind "StaticLib"
 	language "C"
@@ -29,17 +26,18 @@ project "eglib"
 		EGLIB_ROOT .. "src/*-win32.c",
 	}
 
-	configuration "windows"
+	filter "system:windows"
 		SetupWindowsDefines()
 		files
 		{
 			EGLIB_ROOT .. "src/*-win32.c"
 		}
 
-	configuration "not windows"
+	filter "system:not windows"
 		files { EGLIB_ROOT .. "src/*-unix.c" }
 
-	configuration "vs*"
+	filter "action:vs*"
+		SetupMSVCWarnings()
 		buildoptions
 		{
 			"/wd4018", -- signed/unsigned mismatch

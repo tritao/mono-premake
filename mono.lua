@@ -1,7 +1,7 @@
 MONO_RUNTIME_ROOT = MONO_ROOT .. "mono/"
 
 function SetupSGen()
-	local c = configuration()
+	local f = filter()
 
 	defines
 	{
@@ -16,16 +16,16 @@ function SetupSGen()
 		MONO_RUNTIME_ROOT .. "metadata/sgen-*.*"
 	}
 
-	configuration "windows"
+	filter "system:windows"
 		files { MONO_RUNTIME_ROOT .. "metadata/sgen-os-win*.c" }
 
-	configuration "not windows"
+	filter "system:not windows"
 		files { MONO_RUNTIME_ROOT .. "metadata/sgen-os-posix.c" }
 
-	configuration "osx"
+	filter "system:macosx"
 		files { MONO_RUNTIME_ROOT .. "metadata/sgen-os-mach.c" }
 
-	configuration(c)
+	filter(f)
 end
 
 function SetupConfigDefines()
@@ -69,14 +69,52 @@ function GenerateVersion()
 	file:close()
 end
 
-function SetupMonoIncludes()
+function SetupMonoIncludes(monoRuntimeRoot)
 	includedirs
 	{
 		gendir,
-		MONO_RUNTIME_ROOT,
-		MONO_RUNTIME_ROOT .. "..",
-		MONO_RUNTIME_ROOT .. "../eglib/src",
-		MONO_RUNTIME_ROOT .. "utils/",
+		monoRuntimeRoot,
+		monoRuntimeRoot .. "..",
+		monoRuntimeRoot .. "../eglib/src",
+		monoRuntimeRoot .. "utils/",
+	}
+	print(monoRuntimeRoot .. "../eglib/src")
+end
+
+function SetupMonoLinks()
+	local f = filter()
+
+	links
+	{
+		"eglib",
+		"libmonoruntime",
+		"libmonoutils"
+	}
+
+	filter "system:windows"
+
+		links
+		{
+			"Mswsock",
+			"ws2_32",
+			"psapi",
+			"version",
+			"winmm",
+		}
+
+	filter()
+end
+
+function GenerateMachineDescription(arch)
+	local prj = premake.api.scope.project.location
+	local abs = path.getabsolute(MONO_RUNTIME_ROOT .. 'mini/cpu-' .. arch .. '.md')
+	local input = path.getrelative(prj, abs)	
+	local out = gendir .. '/cpu-' .. arch .. '.h'
+	local desc = arch .. '_desc'
+
+	prebuildcommands
+	{
+		'"%{cfg.targetdir}/genmdesc" ' .. out .. ' ' .. desc .. ' ' .. input
 	}
 end
 
@@ -84,8 +122,6 @@ GenerateConfig()
 GenerateVersion()
 
 project "mono"
-
-	SetupNativeProject()
 	
 	kind "ConsoleApp"
 	language "C"
@@ -110,50 +146,12 @@ project "mono"
 		"libmonoutils"
 	}
 
-	configuration "vs*"
+	filter "action:vs*"
 		defines { "_CRT_SECURE_NO_WARNINGS", "_CRT_NONSTDC_NO_DEPRECATE" }
 		SetupConfigDefines()
 
-function GenerateMachineDescription(arch)
-	local prj = premake.api.scope.project.location
-	local abs = path.getabsolute(MONO_RUNTIME_ROOT .. 'mini/cpu-' .. arch .. '.md')
-	local input = path.getrelative(prj, abs)	
-	local out = gendir .. '/cpu-' .. arch .. '.h'
-	local desc = arch .. '_desc'
-
-	prebuildcommands
-	{
-		'"%{cfg.targetdir}/genmdesc" ' .. out .. ' ' .. desc .. ' ' .. input
-	}
-end
-
-function SetupMonoLinks()
-	local c = configuration()
-
-	links
-	{
-		"eglib",
-		"libmonoruntime",
-		"libmonoutils"
-	}
-
-	configuration "windows"
-
-		links
-		{
-			"Mswsock",
-			"ws2_32",
-			"psapi",
-			"version",
-			"winmm",
-		}
-
-	configuration(c)
-end
 
 project "libmono"
-
-	SetupNativeProject()
 
 	kind "SharedLib"
 	language "C"
@@ -165,7 +163,7 @@ project "libmono"
 		"MONO_DLL_EXPORT"
 	}
 	
-	SetupMonoIncludes()
+	SetupMonoIncludes(MONO_RUNTIME_ROOT)
 	SetupMonoLinks()
 
 	files
@@ -173,7 +171,7 @@ project "libmono"
 		MONO_RUNTIME_ROOT .. "mini/*.c",
 		MONO_RUNTIME_ROOT .. "mini/*.h",
 	}
-	
+
 	excludes
 	{
 		-- Archicture-specific files
@@ -185,7 +183,7 @@ project "libmono"
 		MONO_RUNTIME_ROOT .. "mini/*-ia64.*",
 		MONO_RUNTIME_ROOT .. "mini/*-llvm.*",
 		MONO_RUNTIME_ROOT .. "mini/*-mips.*",
-		MONO_RUNTIME_ROOT .. "mini/*-ppc.*",		
+		MONO_RUNTIME_ROOT .. "mini/*-ppc.*",
 		MONO_RUNTIME_ROOT .. "mini/*-s390*.*",
 		MONO_RUNTIME_ROOT .. "mini/*-sparc.*",
 		MONO_RUNTIME_ROOT .. "mini/*-x86.*",
@@ -198,48 +196,48 @@ project "libmono"
 		-- Tools
 		MONO_RUNTIME_ROOT .. "mini/fsacheck.c",
 		MONO_RUNTIME_ROOT .. "mini/genmdesc.c",
-		MONO_RUNTIME_ROOT .. "mini/main.c",		
+		MONO_RUNTIME_ROOT .. "mini/main.c",
 	}
 
 	dependson { "genmdesc" }
 	
-	configuration "x32"
+	filter "platforms:x32"
 		GenerateMachineDescription('x86')
 		files
 		{
 			MONO_RUNTIME_ROOT .. "mini/*-x86.c",
 		}
 
-	configuration "x64"
+	filter "platforms:x64"
 		GenerateMachineDescription('amd64')
 		files
 		{
 			MONO_RUNTIME_ROOT .. "mini/*-amd64.c",
 		}	
 
-	configuration "windows"
+	filter "system:windows"
 		SetupWindowsDefines()
-		SetupWindowsWarnings()
 		files
 		{
 			MONO_RUNTIME_ROOT .. "mini/*-windows.c"
 		}
 
-	configuration "not windows"
+	filter "system:not windows"
 		files
 		{
 			MONO_RUNTIME_ROOT .. "mini/*-posix.c"
 		}
 
-	configuration "macosx"
+	filter "system:macosx"
 		files
 		{
 			MONO_RUNTIME_ROOT .. "mini/*-darwin.c"
 		}
 
-	configuration "vs*"
+	filter "action:vs*"
 		defines { "_CRT_SECURE_NO_WARNINGS", "_CRT_NONSTDC_NO_DEPRECATE" }
 		SetupConfigDefines()
+		SetupMSVCWarnings()
 		buildoptions
 		{
 			"/wd4018", -- signed/unsigned mismatch
@@ -252,12 +250,10 @@ project "libmono"
 		{
 			"/ignore:4049", -- locally defined symbol imported
 			"/ignore:4217", -- locally defined symbol imported in function
-		}		
+		}
 
 project "libmonoruntime"
 
-	SetupNativeProject()
-	
 	kind "StaticLib"
 	language "C"
 	
@@ -266,16 +262,20 @@ project "libmonoruntime"
 		"HAVE_CONFIG_H",
 	}
 
-	SetupMonoIncludes()
+	SetupMonoIncludes(MONO_RUNTIME_ROOT)
 	
 	files
 	{
 		MONO_RUNTIME_ROOT .. "metadata/*.c",
 		MONO_RUNTIME_ROOT .. "metadata/*.h",
+		MONO_RUNTIME_ROOT .. "sgen/*.c",
+		MONO_RUNTIME_ROOT .. "sgen/*.h",
 	}
 
 	excludes
-	{	
+	{
+		MONO_RUNTIME_ROOT .. "metadata/threadpool-ms-io-*",
+
 		-- GC-specific files
 		MONO_RUNTIME_ROOT .. "metadata/boehm-gc.c",
 		MONO_RUNTIME_ROOT .. "metadata/null-gc.c",
@@ -297,35 +297,34 @@ project "libmonoruntime"
 
 	SetupSGen()
 
-	configuration "windows"
+	filter "system:windows"
 		SetupWindowsDefines()
-
+		defines { "_WINSOCK_DEPRECATED_NO_WARNINGS" }
 		files
 		{
 			MONO_RUNTIME_ROOT .. "metadata/coree.c",
 		}
 
-	configuration "linux"
+	filter "system:linux"
 		files
 		{
 			MONO_RUNTIME_ROOT .. "metadata/tpool-epoll.c"
 		}
 		
-	configuration "macosx or freebsd"
+	filter "system:macosx or freebsd"
 		files
 		{
 			MONO_RUNTIME_ROOT .. "metadata/tpool-kqueue.c"
 		}
 
-	configuration "vs*"
+	filter "action:vs*"
 		defines { "_CRT_SECURE_NO_WARNINGS", "_CRT_NONSTDC_NO_DEPRECATE" }
 		SetupConfigDefines()
-		SetupWindowsWarnings()
+		SetupMSVCWarnings()
+
 
 project "libmonoutils"
 
-	SetupNativeProject()
-	
 	kind "StaticLib"
 	language "C"
 	
@@ -334,7 +333,7 @@ project "libmonoutils"
 		"HAVE_CONFIG_H",
 	}
 
-	SetupMonoIncludes()
+	SetupMonoIncludes(MONO_RUNTIME_ROOT)
 	
 	files
 	{
@@ -343,7 +342,9 @@ project "libmonoutils"
 	}
 
 	excludes
-	{	
+	{
+		MONO_RUNTIME_ROOT .. "utils/sha1.c",
+
 		-- Platform-specific files
 		MONO_RUNTIME_ROOT .. "utils/atomic.c",
 		MONO_RUNTIME_ROOT .. "utils/mono-hwcap-*.*",
@@ -353,13 +354,15 @@ project "libmonoutils"
 		MONO_RUNTIME_ROOT .. "utils/mono-embed.c",
 	}
 
-	configuration { "arm" }
+	files { MONO_RUNTIME_ROOT .. "utils/mono-threads-state-machine.c" }
+
+	filter "architecture:arm*"
 		files { MONO_RUNTIME_ROOT .. "utils/mono-hwcap-arm.*" }
 
-	configuration "x32 or x64"
+	filter "architecture:x32 or x64"
 		files { MONO_RUNTIME_ROOT .. "utils/mono-hwcap-x86.*" }
 
-	configuration "windows"
+	filter "system:windows"
 		SetupWindowsDefines()
 		files
 		{
@@ -376,21 +379,21 @@ project "libmonoutils"
 			"eglib",
 		}
 
-	configuration "not windows"
+	filter "system:not windows"
 		files
 		{
 			MONO_RUNTIME_ROOT .. "utils/mono-threads-posix.c",
 		}
 
-	configuration "macosx"
+	filter "system:macosx"
 		files
 		{
 			MONO_RUNTIME_ROOT .. "utils/mono-threads-mach.c",
 		}
 
-	configuration "vs*"
+	filter "action:vs*"
 		defines { "_CRT_SECURE_NO_WARNINGS", "_CRT_NONSTDC_NO_DEPRECATE" }
 		SetupConfigDefines()
-		SetupWindowsWarnings()
+		SetupMSVCWarnings()
 		buildoptions { "/wd4273", "/wd4197" }
 

@@ -3,10 +3,15 @@ MCS_ROOT = MONO_ROOT .. 'mcs/'
 function GenerateConsts()
   print('Generating Consts.cs')
 
-  local src = MCS_ROOT .. 'build/common/Consts.cs.in'
+  local consts = 'build/common/Consts.cs.in'
+  local src = MCS_ROOT .. consts
   local dest = gendir .. '/Consts.cs'
 
   local file = io.open(path.getabsolute(src))
+  if not file then
+    error(consts .. " was not found")
+  end
+
   local contents = file:read("*all")
   file:close()
 
@@ -27,15 +32,13 @@ end
 GenerateConsts()
 
 project "mcs-gen"
-  SetupNativeProject()
 
   kind "ConsoleApp"
-  language "C"
   dependson { "jay" }
 
   files { MCS_ROOT .. "mcs/*.jay" }
 
-  configuration '**.jay'
+  filter 'files:**.jay'
     -- A message to display while this build step is running (optional)
     buildmessage 'Generating %{file.relpath}'
 
